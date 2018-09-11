@@ -19,6 +19,7 @@
 #include "cartographer/mapping/internal/2d/local_trajectory_builder_options_2d.h"
 #include "cartographer/mapping/internal/3d/local_trajectory_builder_options_3d.h"
 #include "cartographer/mapping/local_slam_result_data.h"
+#include "cartographer/transform/rigid_transform.h"
 
 namespace cartographer {
 namespace mapping {
@@ -37,6 +38,59 @@ void PopulatePureLocalizationTrimmerOptions(
       options_dictionary->GetInt("max_submaps_to_keep"));
 }
 
+void PopulateRelativePoseOptions(
+    proto::InitialTrajectoryPose* const initial_trajectory_pose_options,
+    common::LuaParameterDictionary* const parameter_dictionary) {
+  constexpr char kDictionaryKey[] = "relative_pose";
+  if (!parameter_dictionary->HasKey(kDictionaryKey)) return;
+
+  auto relative_pose_dictionary = parameter_dictionary->GetDictionary(kDictionaryKey);
+  auto* relative_pose_options =
+		  initial_trajectory_pose_options->mutable_relative_pose();
+
+  if (relative_pose_dictionary->HasKey("translation"))
+  {
+	  auto translation_dictionary = relative_pose_dictionary->GetDictionary("translation");
+	  auto* translation_options = relative_pose_options->mutable_translation();
+
+	  translation_options->set_x(translation_dictionary->GetDouble("x"));
+	  translation_options->set_y(translation_dictionary->GetDouble("y"));
+	  translation_options->set_z(translation_dictionary->GetDouble("z"));
+  }
+
+  if (relative_pose_dictionary->HasKey("rotation"))
+  {
+	  auto dictionary = relative_pose_dictionary->GetDictionary("rotation");
+	  auto* options = relative_pose_options->mutable_rotation();
+
+	  double roll = dictionary->GetDouble("roll");
+	  double pitch = dictionary->GetDouble("pitch");
+	  double yaw = dictionary->GetDouble("yaw");
+
+	  Eigen::Quaterniond quaternion = cartographer::transform::RollPitchYaw(roll, pitch, yaw);
+	  options->set_x(quaternion.x());
+	  options->set_y(quaternion.y());
+	  options->set_z(quaternion.z());
+	  options->set_w(quaternion.w());
+  }
+}
+
+void PopulateInitialTrajectoryPoseOptions(
+    proto::TrajectoryBuilderOptions* const trajectory_builder_options,
+    common::LuaParameterDictionary* const parameter_dictionary) {
+  constexpr char kDictionaryKey[] = "initial_trajectory_pose";
+  if (!parameter_dictionary->HasKey(kDictionaryKey)) return;
+
+  auto options_dictionary = parameter_dictionary->GetDictionary(kDictionaryKey);
+  auto* options =
+      trajectory_builder_options->mutable_initial_trajectory_pose();
+
+  options->set_timestamp(options_dictionary->GetNonNegativeInt("timestamp"));
+  options->set_to_trajectory_id(options_dictionary->GetInt("to_trajectory_id"));
+
+  PopulateRelativePoseOptions(options, &(*options_dictionary));
+}
+
 }  // namespace
 
 proto::TrajectoryBuilderOptions CreateTrajectoryBuilderOptions(
@@ -53,6 +107,7 @@ proto::TrajectoryBuilderOptions CreateTrajectoryBuilderOptions(
   options.set_collate_landmarks(
       parameter_dictionary->GetBool("collate_landmarks"));
   PopulatePureLocalizationTrimmerOptions(&options, parameter_dictionary);
+  PopulateInitialTrajectoryPoseOptions(&options, parameter_dictionary);
   return options;
 }
 
