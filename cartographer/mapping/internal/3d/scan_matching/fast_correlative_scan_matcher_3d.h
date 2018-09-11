@@ -89,7 +89,7 @@ class FastCorrelativeScanMatcher3D {
   std::unique_ptr<Result> Match(const transform::Rigid3d& global_node_pose,
                                 const transform::Rigid3d& global_submap_pose,
                                 const TrajectoryNode::Data& constant_data,
-                                float min_score) const;
+                                float min_score, bool log = false) const;
 
   // Aligns the node with the given 'constant_data' within the 'hybrid_grid'
   // given rotations which are expected to be approximately gravity aligned.
@@ -114,7 +114,8 @@ class FastCorrelativeScanMatcher3D {
       const transform::Rigid3f& global_submap_pose,
       const sensor::PointCloud& point_cloud,
       const Eigen::VectorXf& rotational_scan_matcher_histogram,
-      const Eigen::Quaterniond& gravity_alignment, float min_score) const;
+      const Eigen::Quaterniond& gravity_alignment, float min_score,
+      const bool log = false) const;
   DiscreteScan3D DiscretizeScan(const SearchParameters& search_parameters,
                                 const sensor::PointCloud& point_cloud,
                                 const transform::Rigid3f& pose,
@@ -125,7 +126,8 @@ class FastCorrelativeScanMatcher3D {
       const Eigen::VectorXf& rotational_scan_matcher_histogram,
       const Eigen::Quaterniond& gravity_alignment,
       const transform::Rigid3f& global_node_pose,
-      const transform::Rigid3f& global_submap_pose) const;
+      const transform::Rigid3f& global_submap_pose,
+      const bool log = false) const;
   std::vector<Candidate3D> GenerateLowestResolutionCandidates(
       const SearchParameters& search_parameters, int num_discrete_scans) const;
   void ScoreCandidates(int depth,
@@ -137,7 +139,9 @@ class FastCorrelativeScanMatcher3D {
   Candidate3D BranchAndBound(const SearchParameters& search_parameters,
                              const std::vector<DiscreteScan3D>& discrete_scans,
                              const std::vector<Candidate3D>& candidates,
-                             int candidate_depth, float min_score) const;
+                             int candidate_depth, float min_score,
+                             unsigned int& count, double& max_low_res_score,
+                             const bool log = false) const;
   transform::Rigid3f GetPoseFromCandidate(
       const std::vector<DiscreteScan3D>& discrete_scans,
       const Candidate3D& candidate) const;

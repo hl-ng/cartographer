@@ -128,7 +128,8 @@ std::unique_ptr<FastCorrelativeScanMatcher3D::Result>
 FastCorrelativeScanMatcher3D::Match(
     const transform::Rigid3d& global_node_pose,
     const transform::Rigid3d& global_submap_pose,
-    const TrajectoryNode::Data& constant_data, const float min_score) const {
+    const TrajectoryNode::Data& constant_data, const float min_score,
+    bool log) const {
   const auto low_resolution_matcher = scan_matching::CreateLowResolutionMatcher(
       low_resolution_hybrid_grid_, &constant_data.low_resolution_point_cloud);
   const SearchParameters search_parameters{
@@ -140,7 +141,7 @@ FastCorrelativeScanMatcher3D::Match(
       global_submap_pose.cast<float>(),
       constant_data.high_resolution_point_cloud,
       constant_data.rotational_scan_matcher_histogram,
-      constant_data.gravity_alignment, min_score);
+      constant_data.gravity_alignment, min_score, log);
 }
 
 std::unique_ptr<FastCorrelativeScanMatcher3D::Result>
@@ -166,7 +167,7 @@ FastCorrelativeScanMatcher3D::MatchFullSubmap(
       transform::Rigid3f::Rotation(global_submap_rotation.cast<float>()),
       constant_data.high_resolution_point_cloud,
       constant_data.rotational_scan_matcher_histogram,
-      constant_data.gravity_alignment, min_score);
+      constant_data.gravity_alignment, min_score, true);
 }
 
 std::unique_ptr<FastCorrelativeScanMatcher3D::Result>
@@ -176,24 +177,56 @@ FastCorrelativeScanMatcher3D::MatchWithSearchParameters(
     const transform::Rigid3f& global_submap_pose,
     const sensor::PointCloud& point_cloud,
     const Eigen::VectorXf& rotational_scan_matcher_histogram,
-    const Eigen::Quaterniond& gravity_alignment, const float min_score) const {
+    const Eigen::Quaterniond& gravity_alignment, const float min_score,
+    const bool log) const {
+
   const std::vector<DiscreteScan3D> discrete_scans = GenerateDiscreteScans(
       search_parameters, point_cloud, rotational_scan_matcher_histogram,
-      gravity_alignment, global_node_pose, global_submap_pose);
+      gravity_alignment, global_node_pose, global_submap_pose, log);
 
   const std::vector<Candidate3D> lowest_resolution_candidates =
       ComputeLowestResolutionCandidates(search_parameters, discrete_scans);
 
+  u_int low_res_candidate_warn_threshold = 500000;
+  if (log && lowest_resolution_candidates.size() > low_res_candidate_warn_threshold) {
+    LOG(INFO) << "Low res candidates size: " << lowest_resolution_candidates.size()
+        << ", should be usually around 100k and in general < " << low_res_candidate_warn_threshold;
+  }
+
+  unsigned int branching_count = 0;
+  double max_low_res_score = 0.0;
   const Candidate3D best_candidate = BranchAndBound(
       search_parameters, discrete_scans, lowest_resolution_candidates,
-      precomputation_grid_stack_->max_depth(), min_score);
+      precomputation_grid_stack_->max_depth(), min_score, branching_count,
+      max_low_res_score, log);
+
   if (best_candidate.score > min_score) {
+    if (log) {
+      LOG(INFO) << "[SUCCESS] " << "Found match after branching " << branching_count << " times, low res score: "
+          << best_candidate.low_resolution_score << ", score: " << best_candidate.score;
+    }
+
     return absl::make_unique<Result>(Result{
         best_candidate.score,
         GetPoseFromCandidate(discrete_scans, best_candidate).cast<double>(),
         discrete_scans[best_candidate.scan_index].rotational_score,
         best_candidate.low_resolution_score});
   }
+
+  if (log) {
+    if (max_low_res_score != 0.0) {
+        LOG(INFO) << "[DROPPED] " << "Dropped after branching "<< branching_count
+            << " times, because of low res score: " << max_low_res_score;
+    } else if (best_candidate.score != 0.0) {
+      LOG(INFO) << "[DROPPED] " << "Dropped after branching " << branching_count
+          << " times because of score < " << best_candidate.score;
+    } else {
+        LOG(WARNING) << "[DROPPED] " << "Dropped after branching " << branching_count
+            << " times because of unknown reason, max low res score: " << max_low_res_score
+            << ", score: " << best_candidate.score;
+    }
+  }
+
   return nullptr;
 }
 
@@ -249,7 +282,8 @@ std::vector<DiscreteScan3D> FastCorrelativeScanMatcher3D::GenerateDiscreteScans(
     const Eigen::VectorXf& rotational_scan_matcher_histogram,
     const Eigen::Quaterniond& gravity_alignment,
     const transform::Rigid3f& global_node_pose,
-    const transform::Rigid3f& global_submap_pose) const {
+    const transform::Rigid3f& global_submap_pose,
+    const bool log) const {
   std::vector<DiscreteScan3D> result;
   // We set this value to something on the order of resolution to make sure that
   // the std::acos() below is defined.
@@ -275,8 +309,11 @@ std::vector<DiscreteScan3D> FastCorrelativeScanMatcher3D::GenerateDiscreteScans(
       transform::GetYaw(node_to_submap.rotation() *
                         gravity_alignment.inverse().cast<float>()),
       angles);
+  int dropped_count = 0;
+
   for (size_t i = 0; i != angles.size(); ++i) {
     if (scores[i] < options_.min_rotational_score()) {
+      ++dropped_count;
       continue;
     }
     const Eigen::Vector3f angle_axis(0.f, 0.f, angles[i]);
@@ -290,6 +327,20 @@ std::vector<DiscreteScan3D> FastCorrelativeScanMatcher3D::GenerateDiscreteScans(
             global_node_pose.rotation());
     result.push_back(
         DiscretizeScan(search_parameters, point_cloud, pose, scores[i]));
+  }
+
+  double dropped_percentage = (dropped_count * 100.0) / angles.size();
+
+  if (log) {
+    double min_percentage = 50;
+    double max_percentage = 100;
+    if (dropped_percentage >= max_percentage || dropped_percentage < min_percentage) {
+      LOG(WARNING) << "Rotation dropped " << dropped_percentage << " % (" << dropped_count << " items), should be > "
+          << min_percentage << " %, < " << max_percentage << " %";
+    } else if (dropped_percentage < 80.0 || dropped_percentage > 98.0) {
+      LOG(INFO) << "Rotation dropped " << dropped_percentage << " % (" << dropped_count
+          << " items), usually should be > 80 % and < 98 %";
+    }
   }
   return result;
 }
@@ -378,17 +429,29 @@ Candidate3D FastCorrelativeScanMatcher3D::BranchAndBound(
     const FastCorrelativeScanMatcher3D::SearchParameters& search_parameters,
     const std::vector<DiscreteScan3D>& discrete_scans,
     const std::vector<Candidate3D>& candidates, const int candidate_depth,
-    float min_score) const {
+    float min_score, unsigned int& count, double& max_low_res_score,
+    const bool log) const {
+  ++count;
+
+  if (log && (count % 2000000) == 0) {
+    LOG(WARNING) << "Already branched " << count
+        << " times, min_score too low?";
+  }
+
   if (candidate_depth == 0) {
     for (const Candidate3D& candidate : candidates) {
       if (candidate.score <= min_score) {
         // Return if the candidate is bad because the following candidate will
         // not have better score.
-        return Candidate3D::Unsuccessful();
+        return candidate;
       }
       const float low_resolution_score =
           (*search_parameters.low_resolution_matcher)(
               GetPoseFromCandidate(discrete_scans, candidate));
+      if (low_resolution_score > max_low_res_score) {
+        max_low_res_score = low_resolution_score;
+      }
+
       if (low_resolution_score >= options_.min_low_resolution_score()) {
         // We found the best candidate that passes the matching function.
         Candidate3D best_candidate = candidate;
@@ -434,7 +497,8 @@ Candidate3D FastCorrelativeScanMatcher3D::BranchAndBound(
         best_high_resolution_candidate,
         BranchAndBound(search_parameters, discrete_scans,
                        higher_resolution_candidates, candidate_depth - 1,
-                       best_high_resolution_candidate.score));
+                       best_high_resolution_candidate.score, count,
+                       max_low_res_score, log));
   }
   return best_high_resolution_candidate;
 }

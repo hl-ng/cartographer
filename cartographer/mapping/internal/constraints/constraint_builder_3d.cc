@@ -227,10 +227,14 @@ void ConstraintBuilder3D::ComputeConstraint(
       return;
     }
   } else {
+    bool mapping = submap_id.trajectory_id == 0 && node_id.trajectory_id == 0;
+    bool initializing = submap_id.submap_index <= 1 && node_id.trajectory_id == 0;
+    bool log = mapping || initializing;
+
     kConstraintsSearchedMetric->Increment();
     match_result = submap_scan_matcher.fast_correlative_scan_matcher->Match(
         global_node_pose, global_submap_pose, *constant_data,
-        options_.min_score());
+        options_.min_score(), log);
     if (match_result != nullptr) {
       // We've reported a successful local match.
       CHECK_GT(match_result->score, options_.min_score());
