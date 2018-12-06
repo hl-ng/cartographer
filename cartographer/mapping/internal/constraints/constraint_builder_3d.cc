@@ -227,9 +227,9 @@ void ConstraintBuilder3D::ComputeConstraint(
       return;
     }
   } else {
-    bool mapping = submap_id.trajectory_id == 0 && node_id.trajectory_id == 0;
-    bool initializing = submap_id.submap_index <= 1 && node_id.trajectory_id == 0;
-    bool log = mapping || initializing || submap_id.trajectory_id != node_id.trajectory_id;
+    const bool mapping = submap_id.trajectory_id == 0 && node_id.trajectory_id == 0;
+    const bool inter_submap_constraint = submap_id.trajectory_id != node_id.trajectory_id;
+    const bool log = mapping || inter_submap_constraint;
 
     kConstraintsSearchedMetric->Increment();
     match_result = submap_scan_matcher.fast_correlative_scan_matcher->Match(

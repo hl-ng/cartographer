@@ -74,6 +74,9 @@ class FastCorrelativeScanMatcher3DTest : public ::testing::Test {
         // Unknown space has kMinProbability = 0.1, so we need to make sure here
         // to pick a larger number otherwise we always find matches.
         "min_low_resolution_score = 0.15, "
+        "linear_xy_search_window_initial = 15, "
+        "linear_z_search_window_initial = 2.0, "
+        "angular_search_window_initial = 3.14153, "
         "linear_xy_search_window = 0.8, "
         "linear_z_search_window = 0.8, "
         "angular_search_window = 0.3, "

@@ -28,6 +28,7 @@
 #include "cartographer/mapping/proto/scan_matching//fast_correlative_scan_matcher_options_3d.pb.h"
 #include "cartographer/transform/transform.h"
 #include "glog/logging.h"
+#include <string>
 
 namespace cartographer {
 namespace mapping {
@@ -45,6 +46,12 @@ CreateFastCorrelativeScanMatcherOptions3D(
       parameter_dictionary->GetDouble("min_rotational_score"));
   options.set_min_low_resolution_score(
       parameter_dictionary->GetDouble("min_low_resolution_score"));
+  options.set_linear_xy_search_window_initial(
+      parameter_dictionary->GetDouble("linear_xy_search_window_initial"));
+  options.set_linear_z_search_window_initial(
+      parameter_dictionary->GetDouble("linear_z_search_window_initial"));
+  options.set_angular_search_window_initial(
+      parameter_dictionary->GetDouble("angular_search_window_initial"));
   options.set_linear_xy_search_window(
       parameter_dictionary->GetDouble("linear_xy_search_window"));
   options.set_linear_z_search_window(
@@ -141,7 +148,7 @@ FastCorrelativeScanMatcher3D::Match(
       global_submap_pose.cast<float>(),
       constant_data.high_resolution_point_cloud,
       constant_data.rotational_scan_matcher_histogram,
-      constant_data.gravity_alignment, min_score, log);
+      constant_data.gravity_alignment, min_score, false, log);
 }
 
 std::unique_ptr<FastCorrelativeScanMatcher3D::Result>
@@ -149,25 +156,19 @@ FastCorrelativeScanMatcher3D::MatchFullSubmap(
     const Eigen::Quaterniond& global_node_rotation,
     const Eigen::Quaterniond& global_submap_rotation,
     const TrajectoryNode::Data& constant_data, const float min_score) const {
-  float max_point_distance = 0.f;
-  for (const sensor::RangefinderPoint& point :
-       constant_data.high_resolution_point_cloud) {
-    max_point_distance = std::max(max_point_distance, point.position.norm());
-  }
-  const int linear_window_size =
-      (width_in_voxels_ + 1) / 2 +
-      common::RoundToInt(max_point_distance / resolution_ + 0.5f);
   const auto low_resolution_matcher = scan_matching::CreateLowResolutionMatcher(
       low_resolution_hybrid_grid_, &constant_data.low_resolution_point_cloud);
   const SearchParameters search_parameters{
-      linear_window_size, linear_window_size, M_PI, &low_resolution_matcher};
+    common::RoundToInt(options_.linear_xy_search_window_initial() / resolution_),
+    common::RoundToInt(options_.linear_z_search_window_initial() / resolution_),
+    options_.angular_search_window_initial(), &low_resolution_matcher};
   return MatchWithSearchParameters(
       search_parameters,
       transform::Rigid3f::Rotation(global_node_rotation.cast<float>()),
       transform::Rigid3f::Rotation(global_submap_rotation.cast<float>()),
       constant_data.high_resolution_point_cloud,
       constant_data.rotational_scan_matcher_histogram,
-      constant_data.gravity_alignment, min_score, true);
+      constant_data.gravity_alignment, min_score, true, true);
 }
 
 std::unique_ptr<FastCorrelativeScanMatcher3D::Result>
@@ -178,7 +179,7 @@ FastCorrelativeScanMatcher3D::MatchWithSearchParameters(
     const sensor::PointCloud& point_cloud,
     const Eigen::VectorXf& rotational_scan_matcher_histogram,
     const Eigen::Quaterniond& gravity_alignment, const float min_score,
-    const bool log) const {
+    const bool full, const bool log) const {
 
   const std::vector<DiscreteScan3D> discrete_scans = GenerateDiscreteScans(
       search_parameters, point_cloud, rotational_scan_matcher_histogram,
@@ -187,9 +188,11 @@ FastCorrelativeScanMatcher3D::MatchWithSearchParameters(
   const std::vector<Candidate3D> lowest_resolution_candidates =
       ComputeLowestResolutionCandidates(search_parameters, discrete_scans);
 
+  const std::string search_type = full ? "full search" : "local search";
+
   u_int low_res_candidate_warn_threshold = 500000;
   if (log && lowest_resolution_candidates.size() > low_res_candidate_warn_threshold) {
-    LOG(INFO) << "Low res candidates size: " << lowest_resolution_candidates.size()
+    LOG(INFO) << search_type << ": Low res candidates size: " << lowest_resolution_candidates.size()
         << ", should be usually around 100k and in general < " << low_res_candidate_warn_threshold;
   }
 
@@ -202,7 +205,7 @@ FastCorrelativeScanMatcher3D::MatchWithSearchParameters(
 
   if (best_candidate.score > min_score) {
     if (log) {
-      LOG(INFO) << "[SUCCESS] " << "Found match after branching " << branching_count << " times, low res score: "
+      LOG(INFO) << "[SUCCESS] " << search_type << ": Found match after branching " << branching_count << " times, low res score: "
           << best_candidate.low_resolution_score << ", score: " << best_candidate.score;
     }
 
@@ -215,13 +218,13 @@ FastCorrelativeScanMatcher3D::MatchWithSearchParameters(
 
   if (log) {
     if (max_low_res_score != 0.0) {
-        LOG(INFO) << "[DROPPED] " << "Dropped after branching "<< branching_count
+        LOG(INFO) << "[DROPPED] " << search_type << ": Dropped after branching "<< branching_count
             << " times, because of low res score: " << max_low_res_score;
     } else if (best_candidate.score != 0.0) {
-      LOG(INFO) << "[DROPPED] " << "Dropped after branching " << branching_count
+      LOG(INFO) << "[DROPPED] " << search_type << ": Dropped after branching " << branching_count
           << " times because of score < " << best_candidate.score;
     } else {
-        LOG(WARNING) << "[DROPPED] " << "Dropped after branching " << branching_count
+        LOG(WARNING) << "[DROPPED] " << search_type << ": Dropped after branching " << branching_count
             << " times because of unknown reason, max low res score: " << max_low_res_score
             << ", score: " << best_candidate.score;
     }

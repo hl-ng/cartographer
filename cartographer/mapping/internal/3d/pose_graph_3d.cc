@@ -270,9 +270,10 @@ void PoseGraph3D::ComputeConstraint(const NodeId& node_id,
         data_.trajectory_connectivity_state.LastConnectionTime(
             node_id.trajectory_id, submap_id.trajectory_id);
 
-    bool global_search_time = node_time >= last_connection_time +
+    const bool global_search_time = node_time >= last_connection_time +
             common::FromSeconds(options_.global_constraint_search_after_n_seconds());
-    bool global_search = last_connection_time == common::Time() ||
+    const bool initialization = last_connection_time == common::Time() && node_id.node_index <= 2;
+    const bool global_search = initialization ||
             (options_.global_constraint_search_after_n_seconds() > 0.0 && global_search_time);
 
 
@@ -293,6 +294,15 @@ void PoseGraph3D::ComputeConstraint(const NodeId& node_id,
                                            constant_data, global_node_pose,
                                            global_submap_pose);
   } else if (maybe_add_global_constraint) {
+    const float distance = (global_node_pose.translation()- global_submap_pose.translation()).norm();
+    if (distance > options_.constraint_builder_options().max_constraint_distance()) {
+        LOG(INFO) << "[SKIPPED] Skipped searching from " << node_id.trajectory_id
+            << ", node " << node_id.node_index << " to subamp " << submap_id.submap_index
+            << " because of distance: " << distance;
+      return;
+    }
+    LOG(INFO) << "Searching global constraint from trajectory " << node_id.trajectory_id
+        << ", node " << node_id.node_index << " to subamp " << submap_id.submap_index;
     constraint_builder_.MaybeAddGlobalConstraint(
         submap_id, submap, node_id, constant_data, global_node_pose.rotation(),
         global_submap_pose.rotation());
