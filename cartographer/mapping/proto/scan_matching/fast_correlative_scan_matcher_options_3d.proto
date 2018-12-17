@@ -31,17 +31,21 @@ message FastCorrelativeScanMatcherOptions3D {
   // not considered. Only used for 3D.
   double min_low_resolution_score = 9;
 
+  // Threshold for the score of the low resolution grid below which a match is for global constraints
+  // not considered. Only used for 3D.
+  double min_low_resolution_score_initial = 10;
+
   // Linear search window for global constraints in the plane orthogonal to gravity in which the best
   // possible scan alignment will be found.
-  double linear_xy_search_window_initial = 10;
+  double linear_xy_search_window_initial = 11;
 
   // Linear search window for global constraints in the gravity direction in which the best possible
   // scan alignment will be found.
-  double linear_z_search_window_initial = 11;
+  double linear_z_search_window_initial = 12;
 
   // Minimum angular search window for global constraints in which the best possible scan alignment
   // will be found.
-  double angular_search_window_initial = 12;
+  double angular_search_window_initial = 13;
 
   // Linear search window in the plane orthogonal to gravity in which the best
   // possible scan alignment will be found.

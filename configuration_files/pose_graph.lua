@@ -42,6 +42,7 @@ POSE_GRAPH = {
       full_resolution_depth = 3,
       min_rotational_score = 0.77,
       min_low_resolution_score = 0.55,
+      min_low_resolution_score_initial = 0.55,
       linear_xy_search_window_initial = 15.,
       linear_z_search_window_initial = 2.,
       angular_search_window_initial = math.rad(180.),

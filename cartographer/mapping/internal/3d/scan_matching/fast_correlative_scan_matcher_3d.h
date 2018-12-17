@@ -105,6 +105,7 @@ class FastCorrelativeScanMatcher3D {
     const int linear_xy_window_size;     // voxels
     const int linear_z_window_size;      // voxels
     const double angular_search_window;  // radians
+    const double min_low_resolution_score;
     const MatchingFunction* const low_resolution_matcher;
   };
 

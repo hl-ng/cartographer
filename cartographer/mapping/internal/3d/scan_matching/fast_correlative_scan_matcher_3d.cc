@@ -46,6 +46,8 @@ CreateFastCorrelativeScanMatcherOptions3D(
       parameter_dictionary->GetDouble("min_rotational_score"));
   options.set_min_low_resolution_score(
       parameter_dictionary->GetDouble("min_low_resolution_score"));
+  options.set_min_low_resolution_score_initial(
+      parameter_dictionary->GetDouble("min_low_resolution_score_initial"));
   options.set_linear_xy_search_window_initial(
       parameter_dictionary->GetDouble("linear_xy_search_window_initial"));
   options.set_linear_z_search_window_initial(
@@ -142,7 +144,8 @@ FastCorrelativeScanMatcher3D::Match(
   const SearchParameters search_parameters{
       common::RoundToInt(options_.linear_xy_search_window() / resolution_),
       common::RoundToInt(options_.linear_z_search_window() / resolution_),
-      options_.angular_search_window(), &low_resolution_matcher};
+      options_.angular_search_window(), options_.min_low_resolution_score(),
+      &low_resolution_matcher};
   return MatchWithSearchParameters(
       search_parameters, global_node_pose.cast<float>(),
       global_submap_pose.cast<float>(),
@@ -161,7 +164,8 @@ FastCorrelativeScanMatcher3D::MatchFullSubmap(
   const SearchParameters search_parameters{
     common::RoundToInt(options_.linear_xy_search_window_initial() / resolution_),
     common::RoundToInt(options_.linear_z_search_window_initial() / resolution_),
-    options_.angular_search_window_initial(), &low_resolution_matcher};
+    options_.angular_search_window_initial(), options_.min_low_resolution_score_initial(),
+    &low_resolution_matcher};
   return MatchWithSearchParameters(
       search_parameters,
       transform::Rigid3f::Rotation(global_node_rotation.cast<float>()),
@@ -185,10 +189,19 @@ FastCorrelativeScanMatcher3D::MatchWithSearchParameters(
       search_parameters, point_cloud, rotational_scan_matcher_histogram,
       gravity_alignment, global_node_pose, global_submap_pose, log);
 
+  const std::string search_type = full ? "full search" : "local search";
+
+  if (discrete_scans.empty())
+  {
+    if(log)
+    {
+      LOG(WARNING) << "[DROPPED] " << search_type << ": Dropped because no discrete scans";
+    }
+    return nullptr;
+  }
+
   const std::vector<Candidate3D> lowest_resolution_candidates =
       ComputeLowestResolutionCandidates(search_parameters, discrete_scans);
-
-  const std::string search_type = full ? "full search" : "local search";
 
   u_int low_res_candidate_warn_threshold = 500000;
   if (log && lowest_resolution_candidates.size() > low_res_candidate_warn_threshold) {
@@ -305,6 +318,7 @@ std::vector<DiscreteScan3D> FastCorrelativeScanMatcher3D::GenerateDiscreteScans(
   for (int rz = -angular_window_size; rz <= angular_window_size; ++rz) {
     angles.push_back(rz * angular_step_size);
   }
+
   const transform::Rigid3f node_to_submap =
       global_submap_pose.inverse() * global_node_pose;
   const std::vector<float> scores = rotational_scan_matcher_.Match(
@@ -312,8 +326,8 @@ std::vector<DiscreteScan3D> FastCorrelativeScanMatcher3D::GenerateDiscreteScans(
       transform::GetYaw(node_to_submap.rotation() *
                         gravity_alignment.inverse().cast<float>()),
       angles);
-  int dropped_count = 0;
 
+  int dropped_count = 0;
   for (size_t i = 0; i != angles.size(); ++i) {
     if (scores[i] < options_.min_rotational_score()) {
       ++dropped_count;
@@ -455,7 +469,7 @@ Candidate3D FastCorrelativeScanMatcher3D::BranchAndBound(
         max_low_res_score = low_resolution_score;
       }
 
-      if (low_resolution_score >= options_.min_low_resolution_score()) {
+      if (low_resolution_score >= search_parameters.min_low_resolution_score) {
         // We found the best candidate that passes the matching function.
         Candidate3D best_candidate = candidate;
         best_candidate.low_resolution_score = low_resolution_score;
