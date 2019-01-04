@@ -202,6 +202,7 @@ void ConstraintBuilder3D::ComputeConstraint(
   // - the initial guess 'initial_pose' (submap i <- node j).
   std::unique_ptr<scan_matching::FastCorrelativeScanMatcher3D::Result>
       match_result;
+  const std::string search_type = match_full_submap ? "full search" : "local search";
 
   // Compute 'pose_estimate' in three stages:
   // 1. Fast estimate using the fast correlative scan matcher.
@@ -214,6 +215,10 @@ void ConstraintBuilder3D::ComputeConstraint(
             global_node_pose.rotation(), global_submap_pose.rotation(),
             *constant_data, options_.global_localization_min_score());
     if (match_result != nullptr) {
+      LOG(INFO) << "[SUCCESS] " << search_type << ": Found match from "
+          << node_id.trajectory_id << ", node " << node_id.node_index
+          << " to " << submap_id.submap_index
+          << ", score: " << match_result->score;
       CHECK_GT(match_result->score, options_.global_localization_min_score());
       CHECK_GE(node_id.trajectory_id, 0);
       CHECK_GE(submap_id.trajectory_id, 0);
@@ -224,6 +229,9 @@ void ConstraintBuilder3D::ComputeConstraint(
       kGlobalConstraintLowResolutionScoresMetric->Observe(
           match_result->low_resolution_score);
     } else {
+      LOG(INFO) << "[DROPPED] " << search_type << ": Dropped from "
+          << node_id.trajectory_id << ", node " << node_id.node_index
+          << " to " << submap_id.submap_index;
       return;
     }
   } else {
@@ -236,6 +244,10 @@ void ConstraintBuilder3D::ComputeConstraint(
         global_node_pose, global_submap_pose, *constant_data,
         options_.min_score(), log);
     if (match_result != nullptr) {
+      LOG(INFO) << "[SUCCESS] " << search_type << ": Found match from "
+          << node_id.trajectory_id << ", node " << node_id.node_index
+          << " to " << submap_id.submap_index
+          << ", score: " << match_result->score;
       // We've reported a successful local match.
       CHECK_GT(match_result->score, options_.min_score());
       kConstraintsFoundMetric->Increment();
@@ -245,6 +257,9 @@ void ConstraintBuilder3D::ComputeConstraint(
       kConstraintLowResolutionScoresMetric->Observe(
           match_result->low_resolution_score);
     } else {
+      LOG(INFO) << "[DROPPED] " << search_type << ": Dropped from "
+          << node_id.trajectory_id << ", node " << node_id.node_index
+          << " to " << submap_id.submap_index;
       return;
     }
   }
