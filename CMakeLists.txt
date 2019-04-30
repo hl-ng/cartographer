@@ -44,7 +44,8 @@ if(WIN32)
   set(protobuf_MODULE_COMPATIBLE TRUE CACHE INTERNAL "")
   find_package(Protobuf 3.0.0 CONFIG)
 else()
-  find_package(Protobuf 3.0.0 REQUIRED)
+  # CONFIG makes CMake ignore the built in FindProtobuf module and look for our custom version instead
+  find_package(Protobuf 3.4.1 EXACT REQUIRED CONFIG)
 endif()
 
 if (${BUILD_GRPC})
