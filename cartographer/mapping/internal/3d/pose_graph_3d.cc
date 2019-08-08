@@ -296,9 +296,6 @@ void PoseGraph3D::ComputeConstraint(const NodeId& node_id,
   } else if (maybe_add_global_constraint) {
     const float distance = (global_node_pose.translation() - global_submap_pose.translation()).norm();
     if (distance > options_.constraint_builder_options().max_constraint_distance()) {
-        LOG(INFO) << "[SKIPPED] Skipped searching from " << node_id.trajectory_id
-            << ", node " << node_id.node_index << " to submap " << submap_id.submap_index
-            << " because of distance: " << distance;
       return;
     }
     LOG(INFO) << "Searching global constraint from trajectory " << node_id.trajectory_id
@@ -525,7 +522,7 @@ void PoseGraph3D::DrainWorkQueue() {
     }
     process_work_queue = work_item() == WorkItem::Result::kDoNotRunOptimization;
   }
-  LOG(INFO) << "Remaining work items in queue: " << work_queue_size;
+  LOG_IF(INFO, work_queue_size != 0) << "Remaining work items in queue: " << work_queue_size;
   // We have to optimize again.
   constraint_builder_.WhenDone(
       [this](const constraints::ConstraintBuilder3D::Result& result) {

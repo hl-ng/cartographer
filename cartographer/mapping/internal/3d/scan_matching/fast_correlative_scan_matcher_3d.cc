@@ -231,11 +231,11 @@ FastCorrelativeScanMatcher3D::MatchWithSearchParameters(
 
   if (log) {
     if (max_low_res_score != 0.0) {
-        LOG(INFO) << "[DROPPED] " << search_type << ": Dropped after branching "<< branching_count
-            << " times, because of low res score: " << max_low_res_score;
+//         LOG(INFO) << "[DROPPED] " << search_type << ": Dropped after branching "<< branching_count
+//             << " times, because of low res score: " << max_low_res_score;
     } else if (best_candidate.score != 0.0) {
-      LOG(INFO) << "[DROPPED] " << search_type << ": Dropped after branching " << branching_count
-          << " times because of score < " << best_candidate.score;
+//       LOG(INFO) << "[DROPPED] " << search_type << ": Dropped after branching " << branching_count
+//           << " times because of score < " << best_candidate.score;
     } else {
         LOG(WARNING) << "[DROPPED] " << search_type << ": Dropped after branching " << branching_count
             << " times because of unknown reason, max low res score: " << max_low_res_score
