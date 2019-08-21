@@ -272,7 +272,7 @@ void PoseGraph3D::ComputeConstraint(const NodeId& node_id,
 
     const bool global_search_time = node_time >= last_connection_time +
             common::FromSeconds(options_.global_constraint_search_after_n_seconds());
-    const bool initialization = node_id.node_index <= 10;
+    const bool initialization = node_id.node_index <= 10 && node_id.trajectory_id > submap_id.trajectory_id;
     const bool global_search = initialization ||
             (options_.global_constraint_search_after_n_seconds() > 0.0 && global_search_time);
 
