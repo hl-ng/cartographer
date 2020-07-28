@@ -40,6 +40,8 @@ proto::ConstraintBuilderOptions CreateConstraintBuilderOptions(
   options.set_loop_closure_rotation_weight(
       parameter_dictionary->GetDouble("loop_closure_rotation_weight"));
   options.set_log_matches(parameter_dictionary->GetBool("log_matches"));
+  options.set_starting_new_trajectory_index(
+      parameter_dictionary->GetInt("starting_new_trajectory_index"));
   *options.mutable_fast_correlative_scan_matcher_options() =
       scan_matching::CreateFastCorrelativeScanMatcherOptions2D(
           parameter_dictionary->GetDictionary("fast_correlative_scan_matcher")

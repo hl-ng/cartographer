@@ -56,4 +56,5 @@ message ConstraintBuilderOptions {
       fast_correlative_scan_matcher_options_3d = 10;
   mapping.scan_matching.proto.CeresScanMatcherOptions3D
       ceres_scan_matcher_options_3d = 12;
+  int32 starting_new_trajectory_index = 15;
 }

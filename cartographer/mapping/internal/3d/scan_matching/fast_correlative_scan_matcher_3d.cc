@@ -138,20 +138,35 @@ FastCorrelativeScanMatcher3D::Match(
     const transform::Rigid3d& global_node_pose,
     const transform::Rigid3d& global_submap_pose,
     const TrajectoryNode::Data& constant_data, const float min_score,
-    bool log) const {
+    bool log, bool initial) const {
   const auto low_resolution_matcher = scan_matching::CreateLowResolutionMatcher(
       low_resolution_hybrid_grid_, &constant_data.low_resolution_point_cloud);
-  const SearchParameters search_parameters{
-      common::RoundToInt(options_.linear_xy_search_window() / resolution_),
-      common::RoundToInt(options_.linear_z_search_window() / resolution_),
-      options_.angular_search_window(), options_.min_low_resolution_score(),
-      &low_resolution_matcher};
-  return MatchWithSearchParameters(
-      search_parameters, global_node_pose.cast<float>(),
-      global_submap_pose.cast<float>(),
-      constant_data.high_resolution_point_cloud,
-      constant_data.rotational_scan_matcher_histogram,
-      constant_data.gravity_alignment, min_score, false, log);
+
+  if (!initial) {
+    const SearchParameters search_parameters{
+        common::RoundToInt(options_.linear_xy_search_window() / resolution_),
+        common::RoundToInt(options_.linear_z_search_window() / resolution_),
+        options_.angular_search_window(), options_.min_low_resolution_score(),
+        &low_resolution_matcher};
+    return MatchWithSearchParameters(
+        search_parameters, global_node_pose.cast<float>(),
+        global_submap_pose.cast<float>(),
+        constant_data.high_resolution_point_cloud,
+        constant_data.rotational_scan_matcher_histogram,
+        constant_data.gravity_alignment, min_score, false, log);
+  } else {
+    const SearchParameters search_parameters{
+        common::RoundToInt(options_.linear_xy_search_window_initial() / resolution_),
+        common::RoundToInt(options_.linear_z_search_window_initial() / resolution_),
+        options_.angular_search_window_initial(), options_.min_low_resolution_score(),
+        &low_resolution_matcher};
+    return MatchWithSearchParameters(
+        search_parameters, global_node_pose.cast<float>(),
+        global_submap_pose.cast<float>(),
+        constant_data.high_resolution_point_cloud,
+        constant_data.rotational_scan_matcher_histogram,
+        constant_data.gravity_alignment, min_score, false, log);
+  }
 }
 
 std::unique_ptr<FastCorrelativeScanMatcher3D::Result>

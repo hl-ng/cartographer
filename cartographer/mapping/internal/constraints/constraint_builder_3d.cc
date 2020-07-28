@@ -90,6 +90,7 @@ void ConstraintBuilder3D::MaybeAddConstraint(
     LOG(WARNING)
         << "MaybeAddConstraint was called while WhenDone was scheduled.";
   }
+
   constraints_.emplace_back();
   kQueueLengthMetric->Set(constraints_.size());
   auto* const constraint = &constraints_.back();
@@ -239,9 +240,19 @@ void ConstraintBuilder3D::ComputeConstraint(
     const bool log = mapping || inter_submap_constraint;
 
     kConstraintsSearchedMetric->Increment();
-    match_result = submap_scan_matcher.fast_correlative_scan_matcher->Match(
+
+    double threshold = options_.min_score();
+
+    if (node_id.node_index <= options_.starting_new_trajectory_index() && inter_submap_constraint) {
+      threshold = options_.global_localization_min_score();
+      match_result = submap_scan_matcher.fast_correlative_scan_matcher->Match(
+        global_node_pose, global_submap_pose, *constant_data,
+        options_.global_localization_min_score(), mapping, true);
+    } else {
+      match_result = submap_scan_matcher.fast_correlative_scan_matcher->Match(
         global_node_pose, global_submap_pose, *constant_data,
         options_.min_score(), mapping);
+    }
     if (match_result != nullptr) {
       if (log) {
         LOG_EVERY_N(INFO, 20) << "[SUCCESS] local_search: Found match from "
@@ -250,7 +261,7 @@ void ConstraintBuilder3D::ComputeConstraint(
             << ", score: " << match_result->score;
       }
       // We've reported a successful local match.
-      CHECK_GT(match_result->score, options_.min_score());
+      CHECK_GT(match_result->score, threshold);
       kConstraintsFoundMetric->Increment();
       kConstraintScoresMetric->Observe(match_result->score);
       kConstraintRotationalScoresMetric->Observe(

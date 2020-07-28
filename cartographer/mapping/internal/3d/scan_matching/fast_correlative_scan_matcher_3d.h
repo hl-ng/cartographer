@@ -89,7 +89,7 @@ class FastCorrelativeScanMatcher3D {
   std::unique_ptr<Result> Match(const transform::Rigid3d& global_node_pose,
                                 const transform::Rigid3d& global_submap_pose,
                                 const TrajectoryNode::Data& constant_data,
-                                float min_score, bool log = false) const;
+                                float min_score, bool log = false, bool initial = false) const;
 
   // Aligns the node with the given 'constant_data' within the 'hybrid_grid'
   // given rotations which are expected to be approximately gravity aligned.

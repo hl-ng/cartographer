@@ -66,4 +66,5 @@ message PoseGraphOptions {
   // Instantiates the 'OverlappingSubmapsTrimmer2d' which trims submaps from the
   // pose graph based on the area of overlap.
   OverlappingSubmapsTrimmerOptions2D overlapping_submaps_trimmer_2d = 11;
+  int32 global_constraint_search_starting_trajectory = 12;
 }
